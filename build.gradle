@@ -1,0 +1,424 @@
+import javax.sound.sampled.AudioFormat
+import javax.sound.sampled.AudioInputStream
+import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.DataLine
+import javax.sound.sampled.SourceDataLine
+import java.security.MessageDigest
+
+import javax.sound.sampled.Clip;
+import java.io.File;
+import java.io.IOException;
+
+plugins {
+    id 'java'
+}
+
+group'test'
+version '1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    
+    implementation 'javax:javaee-api:7.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
+    implementation 'jakarta.platform:jakarta.jakartaee-api:9.1.0'
+    implementation 'org.postgresql:postgresql:42.2.18'
+    implementation 'org.hibernate:hibernate-core:5.4.25.Final'
+    
+
+    implementation 'org.junit.jupiter:junit-jupiter:5.7.0'
+    testImplementation 'org.seleniumhq.selenium:selenium-java:3.141.59'
+    testImplementation 'org.testng:testng:7.4.0'
+}
+
+
+
+task compile2(type: JavaCompile) {
+    source = fileTree(dir: sourceDir, includes: ['/*.java'])
+    destinationDir = file("$buildDir/classes")
+    classpath = configurations.compileClasspath
+}
+
+task build2(type: Jar) {
+    dependsOn compile2
+    from compile2.destinationDir
+}
+
+
+task compile3(type: JavaCompile) {   
+    def directory = project.properties['directory']
+    
+    println("directory - $directory")
+    if (directory == null) {        
+        source = fileTree(dir: sourceDir, includes: ['**/*.java'])
+      	destinationDir = file("$build_dir/classes")
+    } else {	
+	source = fileTree(dir: "$directory/$sourceDir", includes: ['**/*.java'])
+	destinationDir = file("$directory/$build_dir/classes")
+    }    
+    classpath = configurations.compileClasspath	
+}
+
+task createJar(type: Jar, dependsOn: compile3) {
+    from compile3.destinationDir
+    archiveFileName ='myapp.jar'
+
+    def directory = project.properties['directory']
+    if (directory == null) {
+  destinationDirectory = file("$buildDir")
+    } else {
+  destinationDirectory = file("$directory/$build_dir")
+    }
+}
+
+task createWar(type: War, dependsOn: compile3) {
+    from compile3.destinationDir
+    archiveFileName ='0.war'
+    
+
+    from('src/main/webapp') {
+        include 'index.html'
+        include 'assets/**'
+    }
+
+    // Добавляем WEB-INF
+    webInf {
+        from('src/main/webapp/WEB-INF') {
+            include 'web.xml'
+        }
+        // Добавляем lib и classes
+        from(configurations.runtimeClasspath) {
+            into 'lib'
+        }
+        from(compile3.destinationDir) {            
+	    into 'classes'
+        }
+    }
+
+    // Добавляем META-INF
+    metaInf {
+        from('src/main/webapp/META-INF') {
+            include 'persistence.xml'
+        }
+    }
+
+
+
+    def directory = project.properties['directory']
+    if (directory == null) {
+  	destinationDirectory = file("$buildDir")
+    } else {
+	destinationDirectory = file("$directory/$build_dir")
+    }   
+}
+
+task build3(dependsOn: [createWar, createJar]) {
+    println("Start build3")
+    // пустая задача, просто запускает createWar и createJar
+}
+
+task clean2(type: Delete) {
+    delete buildDir
+    delete targetDir
+}
+
+task native2ascii(type: Copy) {
+    delete 'src/main/resources/native2ascii'
+    from 'src/main/resources'
+    into 'src/main/resources/native2ascii'
+    include '**/*.properties'
+    eachFile { file ->
+        def reader = new FileReader(file.file)
+        def content = reader.text
+        reader.close()
+        def asciiContent = content.replaceAll(/[\u0080-\uFFFF]/) { match ->
+            String hex = Integer.toHexString(match.codePointAt(0))
+            '\\u' + hex.padLeft(4, '0')
+        }
+        file.file.write(asciiContent, 'UTF-8')
+    }
+    
+}
+
+task native2ascii2 {
+    delete'src/main/resources/native2ascii'
+    file('src/main/resources/native2ascii').mkdirs()
+    file('src/main/resources').eachFile { file ->
+        if (file.name.endsWith('.properties')) {
+            def content = file.text
+            def asciiContent = content.replaceAll(/[\u0080-\uFFFF]/) { match ->
+                String hex = Integer.toHexString(match.codePointAt(0))
+                '\\u' + hex.padLeft(4, '0')
+            }
+            def destFile = new File('src/main/resources/native2ascii', file.name)
+            destFile.write(asciiContent, 'UTF-8')
+        }
+    }
+}
+
+
+task music {
+    doLast {
+        def musicFile = new File("$musicPath/music.mp3")
+        if (musicFile.exists()) {
+            println "Проигрываю"
+            def process = ['mpg123',"$musicPath/music.mp3"].execute()
+	    Thread.sleep(5000)
+            process.destroy()
+        } else {
+            println "Музыкальный файл не найден"
+        }
+    }
+}
+
+task music2 {
+    doLast {
+        def musicUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+        def url = new URL(musicUrl)
+        def inputStream = url.openStream()
+        def bytes = new byte[inputStream.available()]
+        inputStream.read(bytes)
+        inputStream.close()
+
+        def audioInputStream = new AudioInputStream(new ByteArrayInputStream(bytes), new AudioFormat(44100, 16, 2, true, false), bytes.length / (2 * 2) as int)
+        def audioFormat = audioInputStream.getFormat()
+        def info = new DataLine.Info(SourceDataLine.class, audioFormat)
+        def sourceDataLine = (SourceDataLine) AudioSystem.getLine(info)
+        sourceDataLine.open(audioFormat)
+        sourceDataLine.start()
+        byte[] buffer = new byte[1024]
+        int bytesRead
+        def startTime = System.currentTimeMillis()
+        while ((bytesRead = audioInputStream.read(buffer, 0, buffer.length))!= -1 && System.currentTimeMillis() - startTime < 60000) {
+            sourceDataLine.write(buffer, 0, bytesRead)
+        }
+        sourceDataLine.drain()
+        Thread.sleep(100) // добавляем задержку в 100 мс
+        sourceDataLine.stop()
+        sourceDataLine.close()
+    }
+}
+
+build.finalizedBy music
+
+task xml {
+    doLast {
+        def xmlFiles = fileTree(dir: '.', includes: ['**/*.xml'])
+        xmlFiles.each { file ->
+            try {
+                def xml = new XmlSlurper().parse(file)
+            } catch (org.xml.sax.SAXParseException e) {
+                println("ERROR: ${e.message}")
+                throw new GradleException("XML-файл ${file.absolutePath} не прошел валидацию: ${e.message}")
+            }
+        }
+    }
+}
+
+task doc(dependsOn: build) {
+    doLast {
+	// Генерация MD5 и SHA-1 файлов проекта
+    	def md5 = MessageDigest.getInstance('MD5')
+    	def sha1 = MessageDigest.getInstance('SHA-1')
+    	def files = fileTree(dir: '.', includes: ['**/*.class', '**/*.jar'])
+    	def manifestDir = new File(buildDir, 'META-INF')
+    	manifestDir.mkdirs()
+    	def manifest = new File(manifestDir, 'MANIFEST.MF')
+    	def manifestWriter = new FileWriter(manifest)
+    	manifestWriter.write('Manifest-Version: 1.0\n')
+    	files.each { file ->
+            def md5Digest = md5.digest(file.bytes)
+            def sha1Digest = sha1.digest(file.bytes)
+	    def md5Hex = md5Digest.encodeHex()
+      	    def sha1Hex = sha1Digest.encodeHex()
+            //println "MD5: ${file.name} = ${md5Hex}"
+            //println "SHA-1: ${file.name} = ${sha1Hex}"
+            manifestWriter.write("MD5-${file.name}: ${md5Hex}\n")
+            manifestWriter.write("SHA-1-${file.name}: ${sha1Hex}\n")
+    	}
+    	manifestWriter.close()
+    }        
+}
+
+task javaDoc(type: Javadoc) {      
+    classpath = configurations.runtimeClasspath
+    source = sourceDir
+    destinationDir = new File(buildDir, 'javadoc')
+    options {
+        addStringOption('Xdoclint:none')
+	addStringOption('nowarn')
+	addStringOption('notimestamp')
+        addStringOption('nodeprecated')	
+	//failOnError = false  
+    }   
+      
+}
+
+doc.dependsOn javaDoc
+
+task createWarFile {
+    doLast {
+	def command = "C:\\Users\\cactus\\Downloads\\maven-mvnd-1.0.2-windows-amd64\\mvn\\bin\\mvn.cmd clean package -Dmaven.test.skip=true"
+        def process = command.execute()
+        process.waitFor()
+        println process.text
+    }
+}
+
+// gradle env -Pjvmargs="-Xmx12g -XX:MaxMetaspaceSize=512m -XX:+UseParallelGC -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx2g,-XX:MaxMetaspaceSize=1536m,-XX:+UseParallelGC"
+// gradle env -Pjvmargs="-Xmx1024m -Xms512m"
+task env {
+    doLast {
+        def jvmargs = project.hasProperty('jvmargs')? project.property('jvmargs') : null
+        println(jvmargs)
+        if (jvmargs == null) {
+            println "jvmargs не задан"
+        } else {
+            def properties = new Properties()
+            properties.load(new FileInputStream('gradle.properties'))
+            properties.setProperty('org.gradle.jvmargs', jvmargs)
+            properties.store(new FileOutputStream('gradle.properties'), null)
+        }
+	
+    }
+    //dependsOn build
+    dependsOn createWarFile 
+}
+
+
+// gradle alt -Pdirectory=alt
+task alt {
+    doLast {
+        delete 'alt'
+        // Читаем файлы параметров
+        def replaceFile = new File('replace.properties')
+        def replaceRegexpFile = new File('replaceregexp.properties')
+
+        // Загружаем свойства из файлов
+        def replaceProperties = new Properties()
+        replaceProperties.load(new FileInputStream(replaceFile))
+        def replaceRegexpProperties = new Properties()
+        replaceRegexpProperties.load(new FileInputStream(replaceRegexpFile))
+
+        // Создаем временную директорию для альтернативной версии программы
+        def altDir = new File('alt/src')
+        altDir.mkdirs()
+
+        // Копируем исходные файлы в временную директорию
+        copy {
+            from'./src'
+            into altDir
+            // Сохраняем структуру директорий
+            includeEmptyDirs = true
+        }	
+
+	copy {
+            from '.'
+	    include '*.*'           
+            into 'alt'
+	}
+	
+        // Заменяем имена переменных и классов в файлах
+        replaceProperties.each { key, value ->
+            ant.replace(dir: altDir, includes: '**/*.java') {
+                replacefilter(token: key, value: value)
+            }
+        }
+
+        // Заменяем имена переменных и классов в файлах с помощью регулярных выражений
+        altDir.eachFileRecurse { file ->
+            if (file.name.endsWith('.java')) {
+                replaceRegexpProperties.each { key, value ->
+                    ant.replaceregexp(file: file, match: key, replace: value)
+                }
+            }
+        }
+
+	// Заменяем названия файлов
+        altDir.eachFileRecurse { file ->
+            if (file.name.endsWith('.java')) {
+                def newFileName = file.name
+                replaceProperties.each { key, value ->
+                    newFileName = newFileName.replace(key, value)
+                }
+                replaceRegexpProperties.each { key, value ->
+                    newFileName = newFileName.replaceFirst(key, value)
+                }
+                if (newFileName!= file.name) {
+                    file.renameTo(new File(file.parent, newFileName))
+                }
+            }
+        }
+    } 
+}
+
+alt.finalizedBy build3
+
+
+// gradle scp -Pserver="C://Users/cactus/Desktop/wildfly-34.0.0.Beta1/wildfly-34.0.0.Beta1/standalone/deployments"
+task scp(type: Exec, dependsOn: build3) {
+    def server = project.properties['server']
+    if (server != null) {  	
+    	def warFile = file("$buildDir/0.war")
+    	commandLine 'scp', '-o', 'StrictHostKeyChecking=no', warFile.absolutePath, server
+    }
+}
+
+task test2(type: Test) {
+    useTestNG() {
+        suites'src/test/resources/testng.xml'
+    }
+    testLogging {
+        //events "passed", "skipped", "failed"
+        showStandardStreams = true
+    }
+    
+}
+
+
+task diff {
+    println "***** DIFF STARTED *****"
+
+    def paramsFile = file('params.props')
+    def params = paramsFile.readLines()
+
+    def gitDiffCmd = ['git', 'diff', '--name-only']
+    def gitDiffProcess = gitDiffCmd.execute()
+    gitDiffProcess.waitFor()
+    def differences = gitDiffProcess.inputStream.text.split('\n')
+
+    println "***** $params  *****"
+    println "***** $differences  *****"
+
+    def commitFlag = false
+    for (param in params) {
+        for (diff in differences) {
+            if (param == diff) {
+                println "*** CHANGED FILE FOUND: $param ***"
+                commitFlag = true
+                break
+            }
+        }
+        if (commitFlag) break
+    }
+
+    
+    println "***** $commitFlag  *****"
+    if (commitFlag) {
+        println "*** FILES FROM PARAMS CHANGED, COMMITING... ***"
+        def gitAddCmd = ['git', 'add', '--all']
+        def gitAddProcess = gitAddCmd.execute()
+        gitAddProcess.waitFor()
+
+        //def gitCommitCmd = ['git', 'commit', '-m', 'feat: :sparkles: some shit added (auto-commit)']
+        //def gitCommitProcess = gitCommitCmd.execute()
+        //gitCommitProcess.waitFor()
+    } else {
+        println "*** FILES FROM PARAMS NOT CHANGED ***"
+    }
+
+    println "***** DIFF COMPLETED *****"
+}

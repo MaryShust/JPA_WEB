@@ -35,7 +35,7 @@ public class FormEJB {
     }
 
     private boolean inRect(double x, double y, double r) {
-        return x >= 0 && y <= 0 && x <= r && y >= -r;
+        return x >= 1 && y <= 0 && x <= r && y >= -r;
     }
 
     private boolean inTriangle(double x, double y, double r) {

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suite name="Selenium Tests">
+    <test name="Selenium Test">
+        <classes>	    	    
+            <class name="selenium.AuthFormTest"/>
+	    <class name="selenium.FormTest"/>
+	    <class name="selenium.RedirectTest"/>            	    
+        </classes>
+    </test>
+</suite>
