@@ -48,6 +48,8 @@ task compile2 {
 	} else {
 	    srcDir = file("$project.ext.customDirectory/$source_dir")           
 	    destDir = file("$project.ext.customDirectory/$classes_dir")
+            srcDir.mkdirs()
+	    destDir.mkdirs()
 	    delete "$project.ext.customDirectory/$build_dir"
 	}
 	destDir.mkdirs()
@@ -485,21 +487,23 @@ task report(dependsOn: unitTest) {
 
 
 task team {        
-    doLast {  
-	println("TEAM start")
-        // Клонирование последней версии проекта
-        def lastCommit = "git rev-parse origin/HEAD".execute().text.trim()
-        def cloneDir = "1"
-  
-        "git clone . $cloneDir".execute()
-	def process = "git -C $cloneDir reset --hard $lastCommit".execute()
-        process.waitFor()
-	project.ext.customDirectory = '1'
-	  
+    doLast {
+	(1..4).each { cloneDir ->
+            def commit = "git rev-parse origin/HEAD~$cloneDir".execute().text.trim()                           
+            def clone_p = "git clone . $cloneDir".execute()
+	    clone_p.waitFor()
+            def reset_p = "git -C $cloneDir reset --hard $commit".execute()
+            reset_p.waitFor()
+            //project.ext.customDirectory = "$cloneDir"
+	    
+	    
+	 
+        }
+	"git pull".execute()
     }   
 }
 
-team.finalizedBy build4
+//team.finalizedBy build4
 
 task diff {
     doLast {
