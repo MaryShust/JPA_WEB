@@ -28,27 +28,133 @@ dependencies {
     implementation 'org.postgresql:postgresql:42.2.18'
     implementation 'org.hibernate:hibernate-core:5.4.25.Final'
     
+    implementation 'javax.persistence:javax.persistence-api:2.2'
 
     implementation 'org.junit.jupiter:junit-jupiter:5.7.0'
     testImplementation 'org.seleniumhq.selenium:selenium-java:3.141.59'
     testImplementation 'org.testng:testng:7.4.0'
 }
 
+project.ext.customDirectory = ''
 
-
-task compile2(type: JavaCompile) {
-    source = fileTree(dir: sourceDir, includes: ['/*.java'])
-    destinationDir = file("$buildDir/classes")
-    classpath = configurations.compileClasspath
+task compile2 {
+    doLast {		
+	def srcDir
+        def destDir
+        if (project.ext.customDirectory == '') {
+            srcDir = file(source_dir)            
+	    destDir = file(classes_dir)
+	    delete build_dir	                        
+	} else {
+	    srcDir = file("$project.ext.customDirectory/$source_dir")           
+	    destDir = file("$project.ext.customDirectory/$classes_dir")
+	    delete "$project.ext.customDirectory/$build_dir"
+	}
+	destDir.mkdirs()
+	ant.javac(
+	    srcdir: srcDir,
+            destdir: destDir,
+            classpath: configurations.runtimeClasspath.asPath,
+            source: '1.8',
+            target: '1.8',
+            encoding: 'UTF-8'
+        )	
+    }
 }
 
-task build2(type: Jar) {
-    dependsOn compile2
-    from compile2.destinationDir
+task createJar2(dependsOn: compile2) {
+    doLast {
+	def classesDir = project.ext.customDirectory == ''? classes_dir : "$project.ext.customDirectory/$classes_dir"
+        def jarFile = project.ext.customDirectory == ''? file("$build_dir/0.jar") : file("$project.ext.customDirectory/$build_dir/0.jar")        	        
+        jarFile.parentFile.mkdirs()
+
+        ant.jar(
+            destfile: jarFile,
+            basedir: classesDir
+        )
+    }
+}
+
+task createWar2(dependsOn: compile2) {
+    doLast {
+	println("WAR")
+	def warFile = project.ext.customDirectory == ''? file("$build_dir/0.war") : file("$project.ext.customDirectory/$build_dir/0.war")
+        def classesDir = project.ext.customDirectory == ''? classes_dir : "$project.ext.customDirectory/$classes_dir" 
+	def webappDir = project.ext.customDirectory == ''? file('src/main/webapp') : file("$project.ext.customDirectory/src/main/webapp")        	                       
+
+        warFile.parentFile.mkdirs()
+
+        ant.war(
+            destfile: warFile,
+            webxml: file('src/main/webapp/WEB-INF/web.xml')
+        ) {
+            fileset(dir: classesDir) {
+                include(name: '**/*.class')
+            }
+            fileset(dir: webappDir) {
+                include(name: '**/*')
+            }	               
+        }
+	
+	//println "War файл создан: ${warFile.absolutePath}"
+    }
 }
 
 
-task compile3(type: JavaCompile) {   
+
+task createWar3(type: DefaultTask, dependsOn: compile2) {    
+    doLast {
+	println("Start createWar3")
+        //def warFile = file('build/0.war')
+        //def webInfDir = file('src/main/webapp')
+        //def classesDir = file('build/classes')
+        //def libDir = configurations.runtimeClasspath	
+
+	def warFile = project.ext.customDirectory == ''? file("$build_dir/0.war") : file("$project.ext.customDirectory/$build_dir/0.war")
+	def classesDir = project.ext.customDirectory == ''? classes_dir : "$project.ext.customDirectory/$classes_dir" 
+	def webInfDir = file('src/main/webapp')
+	def libDir = configurations.runtimeClasspath
+
+        // Копируем файлы в папку WEB-INF
+        copy {
+            from webInfDir
+            into warFile.parentFile.absolutePath
+        }
+
+        // Копируем классы в папку classes
+        copy {
+            from classesDir
+            into warFile.parentFile.absolutePath + '/WEB-INF/classes'
+        }
+
+        // Копируем jar файлы в папку lib
+        copy {
+            from libDir
+            into warFile.parentFile.absolutePath + '/WEB-INF/lib'
+        }
+
+        ant.zip(destfile: warFile, basedir: warFile.parentFile.absolutePath)
+	
+	delete "build/assets"
+	delete "build/META-INF"
+	delete "build/WEB-INF"
+	delete "build/index.html"
+    }
+}
+
+
+
+
+task build4(dependsOn: [createWar3, createJar2]) {
+    doLast {
+	project.ext.customDirectory = ''
+    }
+    println("Start build4")
+}
+
+
+
+task compile1(type: JavaCompile) {   
     def directory = project.properties['directory']
     
     println("directory - $directory")
@@ -62,20 +168,21 @@ task compile3(type: JavaCompile) {
     classpath = configurations.compileClasspath	
 }
 
-task createJar(type: Jar, dependsOn: compile3) {
-    from compile3.destinationDir
+task createJar(type: Jar, dependsOn: compile1) {
+    println("JAR - $compile1.destinationDir")
+    from "build/classes"//compile1.destinationDir
     archiveFileName ='myapp.jar'
 
     def directory = project.properties['directory']
     if (directory == null) {
-  destinationDirectory = file("$buildDir")
+    	destinationDirectory = file("$buildDir")
     } else {
-  destinationDirectory = file("$directory/$build_dir")
+  	destinationDirectory = file("$directory/$build_dir")
     }
 }
 
-task createWar(type: War, dependsOn: compile3) {
-    from compile3.destinationDir
+task createWar(type: War, dependsOn: compile1) {
+    from compile1.destinationDir
     archiveFileName ='0.war'
     
 
@@ -93,7 +200,7 @@ task createWar(type: War, dependsOn: compile3) {
         from(configurations.runtimeClasspath) {
             into 'lib'
         }
-        from(compile3.destinationDir) {            
+        from(compile1.destinationDir) {            
 	    into 'classes'
         }
     }
@@ -105,8 +212,6 @@ task createWar(type: War, dependsOn: compile3) {
         }
     }
 
-
-
     def directory = project.properties['directory']
     if (directory == null) {
   	destinationDirectory = file("$buildDir")
@@ -116,31 +221,12 @@ task createWar(type: War, dependsOn: compile3) {
 }
 
 task build3(dependsOn: [createWar, createJar]) {
-    println("Start build3")
-    // пустая задача, просто запускает createWar и createJar
+    println("Start build")
 }
 
 task clean2(type: Delete) {
     delete buildDir
     delete targetDir
-}
-
-task native2ascii(type: Copy) {
-    delete 'src/main/resources/native2ascii'
-    from 'src/main/resources'
-    into 'src/main/resources/native2ascii'
-    include '**/*.properties'
-    eachFile { file ->
-        def reader = new FileReader(file.file)
-        def content = reader.text
-        reader.close()
-        def asciiContent = content.replaceAll(/[\u0080-\uFFFF]/) { match ->
-            String hex = Integer.toHexString(match.codePointAt(0))
-            '\\u' + hex.padLeft(4, '0')
-        }
-        file.file.write(asciiContent, 'UTF-8')
-    }
-    
 }
 
 task native2ascii2 {
@@ -174,35 +260,7 @@ task music {
     }
 }
 
-task music2 {
-    doLast {
-        def musicUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-        def url = new URL(musicUrl)
-        def inputStream = url.openStream()
-        def bytes = new byte[inputStream.available()]
-        inputStream.read(bytes)
-        inputStream.close()
-
-        def audioInputStream = new AudioInputStream(new ByteArrayInputStream(bytes), new AudioFormat(44100, 16, 2, true, false), bytes.length / (2 * 2) as int)
-        def audioFormat = audioInputStream.getFormat()
-        def info = new DataLine.Info(SourceDataLine.class, audioFormat)
-        def sourceDataLine = (SourceDataLine) AudioSystem.getLine(info)
-        sourceDataLine.open(audioFormat)
-        sourceDataLine.start()
-        byte[] buffer = new byte[1024]
-        int bytesRead
-        def startTime = System.currentTimeMillis()
-        while ((bytesRead = audioInputStream.read(buffer, 0, buffer.length))!= -1 && System.currentTimeMillis() - startTime < 60000) {
-            sourceDataLine.write(buffer, 0, bytesRead)
-        }
-        sourceDataLine.drain()
-        Thread.sleep(100) // добавляем задержку в 100 мс
-        sourceDataLine.stop()
-        sourceDataLine.close()
-    }
-}
-
-build.finalizedBy music
+build3.finalizedBy music
 
 task xml {
     doLast {
@@ -218,7 +276,7 @@ task xml {
     }
 }
 
-task doc(dependsOn: build) {
+task doc(dependsOn: build3) {
     doLast {
 	// Генерация MD5 и SHA-1 файлов проекта
     	def md5 = MessageDigest.getInstance('MD5')
@@ -284,7 +342,7 @@ task env {
         }
 	
     }
-    //dependsOn build
+    //dependsOn build3
     dependsOn createWarFile 
 }
 
@@ -367,58 +425,108 @@ task scp(type: Exec, dependsOn: build3) {
     }
 }
 
-task test2(type: Test) {
+task seleniumTest(type: Test) {      
     useTestNG() {
         suites'src/test/resources/testng.xml'
     }
     testLogging {
         //events "passed", "skipped", "failed"
         showStandardStreams = true
-    }
-    
+    }    
 }
 
+task unitTest(type: Test) {
+    useJUnitPlatform()
+    testLogging {
+	//events "passed", "skipped", "failed"
+        showStandardStreams = true
+    }
+    reports.junitXml.destination = file("$buildDir/reports/tests/unitTest/results")	    
+}
+
+task test2(dependsOn: [seleniumTest, unitTest]) {
+    println("Start tests")
+}
+
+
+task report(dependsOn: unitTest) {
+    doLast {
+    	def testReportDir = "$build_dir/reports/tests"
+    	def testReportFile = "$testReportDir/unitTest/results"
+
+	println(testReportDir)
+	println(testReportFile)
+	
+    	File resultsDir = new File(testReportFile)
+
+	println(resultsDir.exists())
+    	if (resultsDir.exists() && resultsDir.isDirectory()) {
+            for (file in resultsDir.listFiles()) {            		    	
+            	def gitAddCmd = ['git', 'add', '-f', file.path]
+            	def gitAddProcess = gitAddCmd.execute()
+            	gitAddProcess.waitFor()
+            }
+
+	    def gitCommitCmd = ['git', 'commit', '-m', 'add test report (result gradle report)']
+            def gitCommitProcess = gitCommitCmd.execute()
+            gitCommitProcess.waitFor()
+    	} else {
+            println "Папка $testReportFile не существует или не является директорией"
+    	}
+    }
+}
+
+
+task team {        
+    doFirst {  
+	println("TEAM start")
+        // Клонирование последней версии проекта
+        def lastCommit = "git rev-parse origin/HEAD".execute().text.trim()
+        def cloneDir = "1"
+  
+        "git clone . $cloneDir".execute()
+	def process = "git -C $cloneDir reset --hard $lastCommit".execute()
+        process.waitFor()
+	project.ext.customDirectory = '1'
+	  
+    } 
+   // dependsOn build4   
+}
+
+team.finalizedBy build4
 
 task diff {
-    println "***** DIFF STARTED *****"
+    doLast {
+    	def paramsFile = file('params.props')
+    	def params = paramsFile.readLines()
 
-    def paramsFile = file('params.props')
-    def params = paramsFile.readLines()
+    	def gitDiffCmd = ['git', 'diff', '--name-only']
+    	def gitDiffProcess = gitDiffCmd.execute()
+    	gitDiffProcess.waitFor()
+    	def differences = gitDiffProcess.inputStream.text.split('\n')
 
-    def gitDiffCmd = ['git', 'diff', '--name-only']
-    def gitDiffProcess = gitDiffCmd.execute()
-    gitDiffProcess.waitFor()
-    def differences = gitDiffProcess.inputStream.text.split('\n')
-
-    println "***** $params  *****"
-    println "***** $differences  *****"
-
-    def commitFlag = false
-    for (param in params) {
-        for (diff in differences) {
-            if (param == diff) {
-                println "*** CHANGED FILE FOUND: $param ***"
-                commitFlag = true
-                break
+    	def commitFlag = false
+    	for (param in params) {
+            for (diff in differences) {
+            	if (param == diff) {                
+                    commitFlag = true
+                    break
+            	}
             }
-        }
-        if (commitFlag) break
+            if (commitFlag) break
+    	}
+
+    	if (commitFlag) {
+            for (file in differences) {	    	
+            	def gitAddCmd = ['git', 'add', file]
+	    	def gitAddProcess = gitAddCmd.execute()
+	    	gitAddProcess.waitFor()
+            }
+
+            def gitCommitCmd = ['git', 'commit', '-m', 'add changed files (result gradle diff)']
+            def gitCommitProcess = gitCommitCmd.execute()
+            gitCommitProcess.waitFor()
+    	}
     }
-
-    
-    println "***** $commitFlag  *****"
-    if (commitFlag) {
-        println "*** FILES FROM PARAMS CHANGED, COMMITING... ***"
-        def gitAddCmd = ['git', 'add', '--all']
-        def gitAddProcess = gitAddCmd.execute()
-        gitAddProcess.waitFor()
-
-        //def gitCommitCmd = ['git', 'commit', '-m', 'feat: :sparkles: some shit added (auto-commit)']
-        //def gitCommitProcess = gitCommitCmd.execute()
-        //gitCommitProcess.waitFor()
-    } else {
-        println "*** FILES FROM PARAMS NOT CHANGED ***"
-    }
-
-    println "***** DIFF COMPLETED *****"
 }
+

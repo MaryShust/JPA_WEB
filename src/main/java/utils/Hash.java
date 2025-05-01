@@ -6,6 +6,9 @@ import java.security.NoSuchAlgorithmException;
 
 public class Hash {
     public static String SHA(String password)  {
+	if (password == null) {
+	    return null;
+	}
         byte[] data1 = password.getBytes(StandardCharsets.UTF_8);
         try {
             MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
