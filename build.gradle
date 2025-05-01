@@ -135,10 +135,17 @@ task createWar3(type: DefaultTask, dependsOn: compile2) {
 
         ant.zip(destfile: warFile, basedir: warFile.parentFile.absolutePath)
 	
-	delete "build/assets"
-	delete "build/META-INF"
-	delete "build/WEB-INF"
-	delete "build/index.html"
+	if (project.ext.customDirectory == '') {
+	    delete "$project.ext.customDirectory/$build_dir/assets"
+	    delete "$project.ext.customDirectory/$build_dir/META-INF"
+	    delete "$project.ext.customDirectory/$build_dir/WEB-INF"
+	    delete "$project.ext.customDirectory/$build_dir/index.html"
+	} else {
+	    delete "$build_dir/assets"
+	    delete "$build_dir/META-INF"
+	    delete "$build_dir/WEB-INF"
+	    delete "$build_dir/index.html"
+	}
     }
 }
 
@@ -478,7 +485,7 @@ task report(dependsOn: unitTest) {
 
 
 task team {        
-    doFirst {  
+    doLast {  
 	println("TEAM start")
         // Клонирование последней версии проекта
         def lastCommit = "git rev-parse origin/HEAD".execute().text.trim()
@@ -489,8 +496,7 @@ task team {
         process.waitFor()
 	project.ext.customDirectory = '1'
 	  
-    } 
-   // dependsOn build4   
+    }   
 }
 
 team.finalizedBy build4
@@ -529,4 +535,6 @@ task diff {
     	}
     }
 }
+
+
 
