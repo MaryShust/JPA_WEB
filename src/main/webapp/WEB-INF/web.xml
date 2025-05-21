@@ -18,6 +18,10 @@
     <servlet-class>servlet.Form</servlet-class>
   </servlet>
   <servlet>
+    <servlet-name>Metrics</servlet-name>
+    <servlet-class>servlet.Metrics</servlet-class>
+  </servlet>
+  <servlet>
     <servlet-name>Point</servlet-name>
     <servlet-class>servlet.Point</servlet-class>
   </servlet>
@@ -29,6 +33,10 @@
   <servlet-mapping>
     <servlet-name>Form</servlet-name>
     <url-pattern>/form</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>Metrics</servlet-name>
+    <url-pattern>/my_metric</url-pattern>
   </servlet-mapping>
   <servlet-mapping>
     <servlet-name>Point</servlet-name>

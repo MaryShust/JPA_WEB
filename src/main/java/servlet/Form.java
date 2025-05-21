@@ -1,8 +1,8 @@
 package servlet;
 
+import beans.MBeanManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import ejb.AuthEJB;
 import ejb.FormEJB;
 import jakarta.ejb.EJB;
 import jakarta.servlet.ServletException;
@@ -11,13 +11,17 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import model.Points;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.List;
 
 @WebServlet("/form")
 public class Form extends HttpServlet {
+
+    public Form() {
+        MBeanManager.registerBean(MBeanManager.getMissRatioMBean(), "MissRatio");
+        MBeanManager.registerBean(MBeanManager.getAttemptsMBean(), "Attempts");
+    }
 
     @EJB
     private FormEJB formEJB;

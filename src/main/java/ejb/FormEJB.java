@@ -3,8 +3,9 @@ package ejb;
 import db.PointsDao;
 import jakarta.ejb.Stateless;
 import model.Points;
-
 import java.util.List;
+import static beans.MBeanManager.getAttemptsMBean;
+import static beans.MBeanManager.getMissRatioMBean;
 
 @Stateless
 public class FormEJB {
@@ -20,29 +21,17 @@ public class FormEJB {
     }
 
     public Points addNewElement(double x, double y, int r, long userId) {
+        CheckerPoint checkerPoint = new CheckerPoint();
         Points point = new Points();
         point.setX(x);
         point.setY(y);
         point.setR(r);
-        point.setResult(validation(x, y, r));
+        boolean resultCheck = checkerPoint.validation(x, y, r);
+        getMissRatioMBean().updateData(resultCheck);
+        getAttemptsMBean().updateData(resultCheck);
+        point.setResult(resultCheck);
         point.setUser_id(userId);
         pointsDao.createPoint(point);
         return point;
-    }
-
-    private boolean validation(double x, double y, int r) {
-        return inRect(x, y, r) || inTriangle(x, y, r) || inCircle(x, y, r);
-    }
-
-    private boolean inRect(double x, double y, double r) {
-        return x >= 0 && y <= 0 && x <= r && y >= -r;
-    }
-
-    private boolean inTriangle(double x, double y, double r) {
-        return x <= 0 && y >= 0 && x >= -r && y <= r/2 && y - x/2 - r/2 <= 0;
-    }
-
-    private boolean inCircle(double x, double y, double r) {
-        return x >= 0 && y >= 0 && x <= r/2 && y <= r/2 && (Math.pow(x, 2) + Math.pow(y, 2) - Math.pow(r/2, 2) <= 0);
     }
 }
