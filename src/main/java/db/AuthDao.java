@@ -8,6 +8,13 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
 import java.util.List;
 
+
+/**
+ * DB по авторизации
+ * 
+ * @author Name
+ * @version 1.0
+ */
 public class AuthDao {
 
     private final EntityManagerFactory factory = Persistence.createEntityManagerFactory("default");
